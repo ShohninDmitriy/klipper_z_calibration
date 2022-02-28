@@ -1,7 +1,7 @@
 # This is a Klipper plugin for a self calibrating Z offset
 
-This is a Klipper plugin to self calibrate the nozzle offset to the print surface on a
-Voron V1/V2. There is no need for a manual Z offset or first layer calibration any more.
+This is a plugin to self calibrate the nozzle offset to the print surface on a 3D printer
+using Klipper. There is no need for a manual Z offset or first layer calibration any more.
 It is possible to change any variable in the printer from the temperature, the nozzle,
 the flex plate, any modding on the print head or bed or even changing the Z endstop
 position value in the klipper configuration. Any of these changes or even all of them
@@ -10,7 +10,11 @@ together do **not** affect the first layer at all.
 Here is a small video for a demonstration:
 [https://streamable.com/wclrmc](https://streamable.com/wclrmc)
 
-### Many thanks for all your feedback to make this happen!
+### If you are looking for a RRF version of this automatic Z offset calibration
+
+Then, you can find it [here](https://github.com/pRINTERnOODLE/Auto-Z-calibration-for-RRF-3.3-or-later-and-Klicky-Probe) from pRINTERnOODLE - really fantastic to see this :tada:
+
+### Many thanks for all your feedback to make this happen
 
 And, if you like my work and would like to support me, please feel free to donate here:
 
@@ -18,6 +22,12 @@ And, if you like my work and would like to support me, please feel free to donat
 
 # News
 
+- **v0.8.1**
+  - Now, the relative reference index (RRI) of the bed mesh is read everytime the calibration
+    starts. So, feel free to use any adaptive mesh macro :tada:
+  - Checks for homed axes and attached probe just before using it
+  - A new Z-Tilt macro in the examples
+  - Improvements of the documentation for installation, configuration and switch_offset
 - **v0.8.0**
   - New configurations for executing G-Code commands (useful for V1 users)
   - Bugfix for configuring the z_calibration too early (many thanks to Frix-x),
@@ -52,6 +62,8 @@ And, if you like my work and would like to support me, please feel free to donat
   - [Drawback](#drawback)
   - [Interference](#interference)
   - [Example](#example)
+  - [Thermal Frame Expansion](#thermal-frame-expansion)
+- [How To Install It](#how-to-install-it)
 - [How To Configure It](#how-to-configure-it)
   - [Preconditions](#preconditions)
   - [Configurations](#configurations)
@@ -81,10 +93,12 @@ independent of any offset calibrations - forever. This is so amazing! :tada:
 ## Requirements
 
 - A Z endstop where the tip of the nozzle drives on a switch (like the standard
-  Voron V1/V2 enstop). It will not work with the virtual pin of the probe as endstop!
+  Voron V1/V2 enstop). **It will not work with the virtual pin of the probe as endstop!**
+  It is not essential to have a Voron printer for this - but this kind of endstop.
 - A magnetic switch based probe at the print head - instead of the stock inductive probe
   (e.g. [this ones from Annex](https://github.com/Annex-Engineering/Quickdraw_Probe),
-  or the popular drop in replacement [KlickyProbe](https://github.com/jlas1/Klicky-Probe))
+  or the popular drop in replacement [KlickyProbe](https://github.com/jlas1/Klicky-Probe)
+  with many mounting options)
 - Both, the Z endstop and mag-probe are configured properly and homing and QGL are working.
 - The "z_calibration.py" file needs to be copied to the `klipper/klippy/extras` folder.
   Klipper will then load this file if it finds the "[z_calibration]" configuration section.
@@ -154,14 +168,35 @@ The endstop value is the homed Z position which is always zero or the configure
 "stepper_z:position_endstop" setting - and in this case, it's even the same as the
 probed nozzle hight.
 
+### Thermal Frame Expansion
+
+There is a further Klipper plugin for adapting the Z height continuously to the thermal
+expansion of the printer frame after starting a print. It is from alchemyEngine and
+can be found
+[here](https://github.com/alchemyEngine/klipper_frame_expansion_comp).
+
+## How To Install It
+
+To install this plugin, you need to copy the `z_calibration.py` file into the `extras`
+folder of klipper. Like:
+> klipper/klippy/extras/z_calibration.py
+
+An alternative would be to clone this repo and run the `install.sh` script (more on
+this in the [Moonraker Updater](#moonraker-updater) section).
+
 ## How To Configure It
 
 ### Preconditions
 
-As a precondition, the probe needs to be configured properly. It is good to use more than
-one sample and use "median" as "probe:samples_result". And it is **important** to configure
-an appropriate probe offset in X, Y and **Z**. The Z offset does not need to be an exact
-value, since we do not use it as an offset, but it needs to be roughly a real value!
+As a precondition, the probe needs to be configured properly. **Please have a look at the
+[KlickyProbe](https://github.com/jlas1/Klicky-Probe) and how to configure it with all the
+macros it comes with.** If the probe does what it should reliably, Then this auto Z offset
+calibration is basically configured by adding the `z_calibration` section.
+
+It is good practice to use more than one sample and use "median" as "probe:samples_result".
+And it is **important** to configure an appropriate probe offset in X, Y and **Z**. The
+Z offset does not need to be an exact value, since we do not use it as an offset, but it
+needs to be roughly a real value!
 
 It even doesn't matter what "stepper_z:position_endstop" value is configured in Klipper.
 All positions are relative to this point - only the absolute values are different. But,
@@ -173,7 +208,7 @@ move the nozzle beyond this offset.
 
 The following configuration is needed to activate the plugin and to set some needed values:
 
->:bulb: **NEW:** If the nozzle cannot be probed with the mag-probe attached (Voron V1), then
+>:bulb: **NEW:** If the nozzle cannot be probed with the mag-probe attached (e.g.: Voron V1), then
 > it's now possible to detach (start_gcode), attach before probing the switch (before_switch_gcode)
 > and even detaching it at the end (end_gcode).
 
@@ -288,6 +323,26 @@ offset base = OP (Operation Position) - switch body height
      0.5 mm = 5.5 mm - 5 mm
 ```
 
+#### How About A Negative Switch Offset?
+
+First of all, there cannot be a negative switch_offset! If the switch_offset is already
+really small after tuning it and the nozzle is still too close to the bed, then there is
+something wrong measuring the probe's body. The following image illustrates this context:
+
+![switch offset](pictures/negative-switch-offset.png)
+
+So, please check your endstop, the rod of the endstop and the position touching the body
+of the probe's switch!
+
+> **:exclamation: Please, do NOT drive the endstop pin on the switch's actuator directly!
+> Otherwise, you do it on your own risk and I will reject any request for support!**
+
+If you do so, a correct or at least a working measured hight at the switch is all up to the
+different forces in this system. But forces can change due to many reasons. The best case
+would be that the actuator is pushed all the way in until the pin touches the body of the
+switch - before the endstop is triggered! But it can also be anything in between...
+So, there is no reason to not touch the body directly in a safe and robust way :thumbsup:
+
 ### Moonraker Updater
 
 >:point_up: **Attention:** If this was already configure prior to version 0.8,
@@ -315,7 +370,8 @@ The script assumes that Klipper is also in your home directory under
 "klipper": `${HOME}/klipper`.
 
 >:point_up: **NOTE:** Currently, there is a dummy systemd service installed
-> to satisfy moonraker's update manager which also restarts Klipper.
+> to satisfy moonraker's update manager which also restarts Klipper after an
+> update.
 
 ## How To Test It
 
